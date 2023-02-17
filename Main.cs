@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
 using UnityModManagerNet;
+using static UnityEngine.Random;
 
 namespace HardShadowGail
 {
@@ -46,7 +47,7 @@ namespace HardShadowGail
 
     // Increase max number of clones from 2/3 to 3/4
     [HarmonyPatch(typeof(ShadowLogic), "_SpawnNewShadow")]
-    static class Spawn_Patch
+    static class SpawnMore_Patch
     {
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
@@ -66,43 +67,87 @@ namespace HardShadowGail
     [HarmonyPatch(typeof(ShadowLogic), "ReceiveAttackResult")]
     static class Respawn_Patch
     {
+        static MethodInfo SpawnNewShadow = AccessTools.Method(typeof(ShadowLogic), "_SpawnNewShadow");
+        static void Postfix(ShadowLogic __instance, bool __result)
+        {
+            if (__result)
+                SpawnNewShadow.Invoke(__instance, null);
 
+        }
+
+    }
+
+    //// Spawn closer to Gail
+    //[HarmonyPatch(typeof(ShadowLogic), "_GoToState")]
+    //static class GoToState_Patch
+    //{
+    //    static Enum STATE = (Enum)AccessTools.Field(typeof(ShadowLogic), "SHADOW_STATE").GetValue(null);
+    //    static void Postfix(ShadowLogic __instance, STATE __new_state)
+    //    {
+    //        if (__new_state == 0x03)
+    //        {
+    //            Main.logger.Log("WARP");
+    //        }
+    //    }
+    //}
+
+    // Run faster
+    [HarmonyPatch(typeof(ShadowLogic), "Initialize_Shadow")]
+    static class Init_Patch
+    {
+        static FieldInfo maxSpeed = AccessTools.Field(typeof(ShadowLogic), "_max_vx_run");
+        static void Postfix(ShadowLogic __instance)
+        {
+            maxSpeed.SetValue(__instance, 9.25f); // Run speed from 7.25 to 9.25
+        }
     }
 
     // Infinite eating
     [HarmonyPatch(typeof(ShadowLogic), "_STATE_EatFood")]
-    static class Eat_Patch
+    static class Eat_Patch // TODO: fix visual bug, stuck on idle animation :/
     {
         static FieldInfo stateCount = AccessTools.Field(typeof(ShadowLogic), "_state_count");
-        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        static void Postfix(ShadowLogic __instance)
         {
-            foreach (var instruction in instructions)
-            {
-                if (instruction.StoresField(stateCount)) // Don't update _state_count
-                {
-                    yield return new CodeInstruction(OpCodes.Pop);
-                    yield return new CodeInstruction(OpCodes.Pop);
-                }
-                else
-                    yield return instruction;
-            }
+            stateCount.SetValue(__instance, 0);
         }
     }
 
     // Increase APM
+    // Move towards player
     [HarmonyPatch(typeof(ShadowLogic), "_STATE_AggroIdle")]
-    static class APM_Patch
+    static class Idle_Patch
     {
+        static FieldInfo waitTime = AccessTools.Field(typeof(ShadowLogic), "_wait_time");
+        static FieldInfo velocityField = AccessTools.Field(typeof(ShadowLogic), "_velocity");
+        static FieldInfo animField = AccessTools.Field(typeof(ShadowLogic), "_anim");
         static MethodInfo ChooseAttack = AccessTools.Method(typeof(ShadowLogic), "_ChooseNextAttack");
-        static void Postfix(ShadowLogic __instance)
+        static MethodInfo RunUp = AccessTools.Method(typeof(ShadowLogic), "_Helper_RunUpToPlayer");
+        static void Prefix(ref ShadowLogic __instance)
         {
-            ChooseAttack.Invoke(__instance, new object[] { });
+            //if ((float)waitTime.GetValue(__instance) > -1f) // Start running
+            //{
+            //    RunUp.Invoke(__instance, null); // Run up to player instead of doing nothing
+            //}
+            if ((float)waitTime.GetValue(__instance) > 0.2f) // Reduce Idle time from 0.5s to 0.2s (servant from 5s to 4.4s)
+            {
+                //Vector3 velocity = (Vector3)velocityField.GetValue(__instance);
+                //velocity.x = 0f;
+                //velocityField.SetValue(__instance, velocity);
+
+                //Animator anim = ((Animator)animField.GetValue(__instance));
+                //anim.SetInteger(global::GL.anim, 0);
+                //animField.SetValue(__instance, anim);
+
+                ChooseAttack.Invoke(__instance, null);
+            }
         }
     }
 
     // Choose spear more often
-    // - spear instead of idle?
-    // - or just increase roll chance
+    // - increase roll chance
+    // - eh, not really necessary with increased APM
+    // - Except it is if closer spawns?
 
     // Spikes to prevent jumping? >:D
     // - maybe periodically to allow straight up jumps
@@ -113,6 +158,10 @@ namespace HardShadowGail
     // Spawn frogs
 
     // Spawn ...? if you damage the clones
+    // - Respawning clones already punishing enough
 
     // Ninja gails (cannot be damaged if not attacking...somehow)
+
+    // Victory fanfare!
+    // Message like the "congrats on beating the game" one?
 }
