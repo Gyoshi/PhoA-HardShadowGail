@@ -63,6 +63,11 @@ namespace HardShadowGail
     }
 
     // Clones respawn
+    [HarmonyPatch(typeof(ShadowLogic), "ReceiveAttackResult")]
+    static class Respawn_Patch
+    {
+
+    }
 
     // Infinite eating
     [HarmonyPatch(typeof(ShadowLogic), "_STATE_EatFood")]
@@ -84,7 +89,20 @@ namespace HardShadowGail
         }
     }
 
+    // Increase APM
+    [HarmonyPatch(typeof(ShadowLogic), "_STATE_AggroIdle")]
+    static class APM_Patch
+    {
+        static MethodInfo ChooseAttack = AccessTools.Method(typeof(ShadowLogic), "_ChooseNextAttack");
+        static void Postfix(ShadowLogic __instance)
+        {
+            ChooseAttack.Invoke(__instance, new object[] { });
+        }
+    }
+
     // Choose spear more often
+    // - spear instead of idle?
+    // - or just increase roll chance
 
     // Spikes to prevent jumping? >:D
     // - maybe periodically to allow straight up jumps
